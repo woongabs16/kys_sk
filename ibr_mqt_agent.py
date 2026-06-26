@@ -214,15 +214,15 @@ def _rule_based_judgment(metrics):
     vstd = metrics["post_V_std"]
     fail_reasons = []
     if recov < 0.95:
-        fail_reasons.append(f"유효전력 회복률 {recov:.0%} < 95% (출력 미복귀)")
+        fail_reasons.append(f"Active power recovery ratio {recov:.0%} < 95% (insufficient recovery)")
     if overshoot > 1.20:
-        fail_reasons.append(f"전압 오버슈트 {overshoot:.3f}pu > 1.20pu")
+        fail_reasons.append(f"Voltage overshoot {overshoot:.3f}pu > 1.20pu")
     if vstd > 0.025:
-        fail_reasons.append(f"고장 후 전압 정착 불안정 (std {vstd:.3f}pu, 감쇠 부족)")
+        fail_reasons.append(f"Post-fault voltage instability (std {vstd:.3f}pu, insufficient damping)")
     if fail_reasons:
         return {"verdict": "Fail", "reason": "; ".join(fail_reasons),
                 "param_table": DEFAULT_PARAM_TABLE, "rationale": DEFAULT_RATIONALE}
-    return {"verdict": "Pass", "reason": "전압 회복 및 출력 복귀 정상",
+    return {"verdict": "Pass", "reason": "All criteria satisfied",
             "param_table": [], "rationale": []}
 
 def judge_with_openai(case, kind, metrics):
@@ -415,8 +415,8 @@ def sidebar():
     st.sidebar.markdown("### 🟠 MQT AI Agent")
     st.sidebar.caption("IBR Model Quality Test")
     if get_api_key():
-        st.sidebar.success("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
-        st.sidebar.caption("개발자 키로 동작 (사용자 입력 불필요)")
+        st.sidebar.success("준비 완료")
+        st.sidebar.caption("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
     else:
         st.sidebar.warning("키 미설정 → 룰베이스 판정")
         st.sidebar.caption("Secrets에 OPENAI_API_KEY 등록 필요")
@@ -459,7 +459,7 @@ def page_run():
     with c1:
         run = st.button("▶ 시뮬레이션 & AI 판정 실행", use_container_width=True)
     if run:
-        with st.spinner("CSV 생성 및 IEEE 2800.2 판정 중..."):
+        with st.spinner("IEEE 2800.2 판정 중..."):
             generated = generate_all_cases(CSV_DIR)
             results = []
             progress = st.progress(0.0)
@@ -533,7 +533,7 @@ def page_chatbot():
     if client is None:
         st.info("🔑 서비스 키가 설정되지 않아 챗봇을 사용할 수 없습니다. (배포자 문의)")
         return
-    st.markdown("##### 💡 추천 질문")
+    st.markdown("##### 💡 질문 예시")
     st.caption("⚡ IEEE 2800 LVRT 기준은? 🌊 REGCAU1 Tp는 무슨 역할? "
                "🔋 Voltage Step Change Test 절차는?")
     if "chat" not in st.session_state:
