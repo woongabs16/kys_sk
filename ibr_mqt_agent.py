@@ -359,7 +359,7 @@ def build_pdf(results, out_path):
     return out_path
 
 # ----------------------------------------------------------------------------
-# Streamlit UI (기존 디자인 및 색상 완전 유지)
+# Streamlit UI
 # ----------------------------------------------------------------------------
 st.set_page_config(page_title="IBR MQT AI Agent", page_icon="🟠", layout="wide")
 WORK_DIR = Path("./mqt_workspace")
@@ -548,19 +548,47 @@ def page_run():
                                file_name="IBR_MQT_Report.pdf", mime="application/pdf")
 
 def page_chatbot():
-    # (기존 챗봇 코드 그대로 유지)
-    st.markdown(
-        "<div class='hero'><h1>⚡ Power System Chatbot 🤖</h1>"
-        "<p>🔌 IBR 계통연계 · 📘 IEEE 2800/2800.2 · 🌊 LVRT/HVRT · 🧩 PSS/E 모델 질의응답</p></div>",
-        unsafe_allow_html=True)
-    client = get_client()
-    if client is None:
-        st.info("🔑 서비스 키가 설정되지 않아 챗봇을 사용할 수 없습니다. (배포자 문의)")
-        return
-    # ... (나머지 챗봇 로직은 이전과 동일)
-
+st.markdown(
+"<div class='hero'><h1>⚡ Power System Chatbot 🤖</h1>"
+"<p>🔌 IBR 계통연계 · 📘 IEEE 2800/2800.2 · 🌊 LVRT/HVRT · 🧩 PSS/E 모델 질의응답</p></div>",
+unsafe_allow_html=True)
+client = get_client()
+if client is None:
+st.info("🔑 서비스 키가 설정되지 않아 챗봇을 사용할 수 없습니다. (배포자 문의)")
+return
+st.markdown("##### 💡 질문 예사")
+st.caption("⚡ IEEE 2800 LVRT 기준은? 🌊 REGCAU1 Tp는 무슨 역할? "
+"🔋 Voltage Step Change Test 절차는?")
+if "chat" not in st.session_state:
+st.session_state.chat = [{
+"role": "assistant",
+"content": "👋 안녕하세요! ⚡ IBR 계통연계 전문 챗봇입니다. "
+"🔌 LVRT/HVRT, 📘 IEEE 2800.2, 🧩 REGC/REEC/REPC 모델 등 무엇이든 물어보세요. 😊"
+}]
+for m in st.session_state.chat:
+avatar = "🤖" if m["role"] == "assistant" else "🧑‍🔧"
+with st.chat_message(m["role"], avatar=avatar):
+st.markdown(m["content"])
+if prompt := st.chat_input("💬 질문을 입력하세요"):
+st.session_state.chat.append({"role": "user", "content": prompt})
+with st.chat_message("user", avatar="🧑‍🔧"):
+st.markdown(prompt)
+system = ("You are a friendly power-system engineer assistant specializing in IBR grid "
+"interconnection, IEEE 2800/2800.2, LVRT/HVRT, voltage step change tests, and "
+"PSS/E inverter models (REGCAU1/REECAU1/REPCAU1). Answer concisely in Korean and "
+"sprinkle a few relevant emojis to keep it friendly.")
+try:
+resp = client.chat.completions.create(
+model="gpt-4o-mini",
+messages=[{"role": "system", "content": system}, *st.session_state.chat])
+answer = resp.choices[0].message.content
+except Exception as e:
+answer = f"⚠️ 오류: {e}"
+st.session_state.chat.append({"role": "assistant", "content": answer})
+with st.chat_message("assistant", avatar="🤖"):
+st.markdown(answer)
 choice = sidebar()
-if choice == "Model Quality Test":
-    page_run()
+if choice == "대시보드 · 판정":
+page_run()
 else:
-    page_chatbot()
+page_chatbot()
