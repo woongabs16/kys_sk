@@ -89,7 +89,7 @@ TEST_CASES = {
         {"id": "LVRT_01", "level": 0.10, "dur": 0.15, "recover": True,
          "desc": "V=0.10pu, 0.15s @POI (IEEE2800 5.3.2)"},
         {"id": "LVRT_02", "level": 0.20, "dur": 0.32, "recover": False,
-         "desc": "V=0.20pu, 0.32s SLG fault - 회복 지연/감쇠 부족 (Fail 사례)"},
+         "desc": "V=0.20pu, 0.32s SLG fault"},
     ],
     "HVRT": [
         {"id": "HVRT_01", "level": 1.15, "dur": 0.50, "recover": True,
