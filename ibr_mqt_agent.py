@@ -58,6 +58,7 @@ def get_client():
 # ----------------------------------------------------------------------------
 GRID_IMG_URL = "https://raw.githubusercontent.com/woongabs16/kys_sk/main/grid_interconnection.png"
 MODEL_IMG_URL = "https://raw.githubusercontent.com/woongabs16/kys_sk/main/pv_plant_model.png"
+LOGO_URL = "https://raw.githubusercontent.com/woongabs16/kys_sk/main/logo.png"
 
 # ----------------------------------------------------------------------------
 # 180 MW PV Plant 모델 정보
@@ -134,24 +135,20 @@ def _make_timeseries(case):
         v[fault_mask] = level
         post_mask = t >= FAULT_START + dur
         v_at_clear = v[fault_mask][-1] if fault_mask.any() else 1.0
-
         if case.get("recover", True):
             tau = 0.12 if "HVRT" in case["id"] else 0.15
             target = 1.0
             v[post_mask] = target + (v_at_clear - target) * np.exp(-(t[post_mask]-(FAULT_START+dur))/tau)
         else:
-            # LVRT_02 Fail 유도: 느린 회복 + 진동 + 낮은 출력 회복
             tau, target = 0.95, 1.0
             decay = np.exp(-(t[post_mask]-(FAULT_START+dur))/tau)
             osc = 0.15 * np.sin(2*np.pi*1.1*(t[post_mask]-(FAULT_START+dur)))
             v[post_mask] = target - (target - v_at_clear)*decay*0.7 + osc*decay*0.6
-
         p = PLANT_MW * np.clip(v, 0, 1.2)
         if not case.get("recover", True):
-            p[post_mask] *= 0.52   # 출력 회복률 낮게 유지
+            p[post_mask] *= 0.52
         q = np.zeros_like(t)
         q[fault_mask] = PLANT_MW * 0.5 * (1.0 - v[fault_mask])
-
     v = v + rng.normal(0, 0.002, size=v.shape)
     p = p + rng.normal(0, 0.3, size=p.shape)
     q = q + rng.normal(0, 0.3, size=q.shape)
@@ -231,8 +228,16 @@ def judge_with_openai(case, kind, metrics):
     if client is None:
         fallback["source"] = "rule-based (API 키 없음)"
         return fallback
-    # OpenAI 판정 (LVRT_02 Fail 보장)
-    prompt = f"""You are a grid-code compliance expert..."""  # 기존 prompt 유지
+    prompt = f"""You are a grid-code compliance expert. Judge the following IBR
+ride-through test result against IEEE 2800.2 conformity criteria.
+Test type: {TEST_LABEL.get(kind, kind)} ({kind})
+Test case: {case['id']} - {case['desc']}
+Computed metrics: {json.dumps(metrics)}
+IEEE 2800.2 expectations:
+- Plant remains connected.
+- Active power recovers to >= 95% of pre-fault value.
+- Post-fault voltage settles near 1.0 pu with good damping.
+Return STRICT JSON only."""
     try:
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -315,11 +320,11 @@ def build_pdf(results, out_path):
         f"Summary &nbsp;-&nbsp; Total {len(results)} cases, "
         f"<font color='#1f8a3b'>{len(results)-n_fail} Pass</font> / "
         f"<font color='#c0392b'>{n_fail} Fail</font>", h2))
-    rows = [["Test", "Case", "Verdict", "P recovery", "Max V (pu)"]]
+    rows = [["Test", "Case", "Verdict", "P recovery"]]
     for r in results:
         rows.append([r["kind"], r["case"]["id"], r["judgment"]["verdict"],
-                     f"{r['metrics']['P_recovery_ratio']:.0%}", f"{r['metrics']['max_V_pu']:.3f}"])
-    tbl = Table(rows, colWidths=[0.9*inch, 1.3*inch, 1.0*inch, 1.2*inch, 1.2*inch])
+                     f"{r['metrics']['P_recovery_ratio']:.0%}"])
+    tbl = Table(rows, colWidths=[1.2*inch, 1.4*inch, 1.0*inch, 1.4*inch])
     style = [("BACKGROUND", (0, 0), (-1, 0), ORANGE),
              ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
              ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -412,10 +417,12 @@ def metric_card(col, value, label, cls=""):
                  f"<div class='l'>{label}</div></div>", unsafe_allow_html=True)
 
 def sidebar():
+    st.sidebar.image(LOGO_URL, width=80)
     st.sidebar.markdown("### 🟠 MQT AI Agent")
     st.sidebar.caption("IBR Model Quality Test")
+    st.sidebar.markdown("**YEONSOO KIM**")
     if get_api_key():
-        st.sidebar.success("준비 완료")
+        st.sidebar.success("**준비 완료**", icon="✅")
         st.sidebar.caption("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
     else:
         st.sidebar.warning("키 미설정 → 룰베이스 판정")
@@ -430,7 +437,7 @@ def render_plant_model():
     with c1:
         st.markdown("<div class='diagram'><div class='cap'>Grid interconnection of the plant model</div></div>",
                     unsafe_allow_html=True)
-        st.image(GRID_IMG_URL, width=520)  # 크기 축소
+        st.image(GRID_IMG_URL, width=520)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
         st.markdown("<div class='diagram'><div class='cap'>PV plant model (WECC Generic REGC / REEC / REPC)</div></div>",
                     unsafe_allow_html=True)
@@ -452,8 +459,8 @@ def page_run():
     render_plant_model()
     st.markdown("<div class='section-title' style='margin-top:18px'>품질테스트 실행</div>"
                 "<div class='hr'></div>", unsafe_allow_html=True)
-    st.markdown("**Performed Tests**  \n"
-                "• Voltage Ride-Through Test (LVRT & HVRT)  \n"
+    st.markdown("**Performed Tests** \n"
+                "• Voltage Ride-Through Test (LVRT & HVRT) \n"
                 "• Voltage Step Change Test")
     c1, _, _ = st.columns([1, 1, 1])
     with c1:
@@ -494,7 +501,6 @@ def page_run():
     summary = pd.DataFrame([{
         "Test": r["kind"], "Case": r["case"]["id"], "Verdict": r["judgment"]["verdict"],
         "P recovery": f"{r['metrics']['P_recovery_ratio']:.0%}",
-        "Max V (pu)": r["metrics"]["max_V_pu"], "Reason": r["judgment"]["reason"],
     } for r in results])
     def color_verdict(val):
         return "color:#c0392b;font-weight:700" if val == "Fail" else "color:#1f8a3b;font-weight:700"
