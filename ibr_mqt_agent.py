@@ -2,31 +2,25 @@
 IBR Model Quality Test (MQT) AI Agent
 =====================================
 인버터(IBR) 모델 품질테스트 자동화를 위한 AI 에이전트.
-
 흐름:
   1. PSS/E 생략 → 180MW PV Plant의 LVRT / HVRT / Voltage Step Change
      테스트를 각 2케이스씩 모사한 CSV 데이터 생성 (+ 탭1에서 적용 모델 확인)
   2. 생성된 CSV를 바탕으로 OpenAI가 IEEE 2800.2 기준으로 Pass/Fail 판정
   3. 판정 결과 PDF 보고서 제공 (Fail이면 실패 이유 + 모델 파라미터 수정방안)
   4. 챗봇으로 사용자 질문 응답
-
-실행:  streamlit run ibr_mqt_agent.py
-
+실행: streamlit run ibr_mqt_agent.py
 [B방법] 키는 코드/깃에 두지 않고 st.secrets 또는 환경변수에서만 읽는다.
  - Streamlit Cloud: 앱 Settings > Secrets 에 OPENAI_API_KEY 등록
  - 로컬: .env 또는 환경변수 OPENAI_API_KEY
 """
-
 import os
 import io
 import json
 from datetime import datetime
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import streamlit as st
-
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -36,23 +30,18 @@ from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak,
     Image as RLImage, ListFlowable, ListItem
 )
-
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
 try:
     from openai import OpenAI
 except ImportError:
     OpenAI = None
-
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
-
-
 # ----------------------------------------------------------------------------
 # API 키 (B방법: 개발자 키를 secrets / env 에서만 읽음)
 # ----------------------------------------------------------------------------
@@ -64,22 +53,19 @@ def get_api_key():
     except Exception:
         pass
     return os.getenv("OPENAI_API_KEY")
-
-
 def get_client():
     key = get_api_key()
     if not key or OpenAI is None:
         return None
     return OpenAI(api_key=key)
-
-
+# ----------------------------------------------------------------------------
+# 이미지 URL (GitHub raw)
+# ----------------------------------------------------------------------------
+GRID_IMG_URL = "https://raw.githubusercontent.com/woongabs16/kys_sk/main/grid_interconnection.png"
+MODEL_IMG_URL = "https://raw.githubusercontent.com/woongabs16/kys_sk/main/pv_plant_model.png"
 # ----------------------------------------------------------------------------
 # 180 MW PV Plant 모델 정보 (탭1 표시용)
 # ----------------------------------------------------------------------------
-ASSETS = Path(__file__).parent / "assets"
-GRID_IMG = ASSETS / "grid_interconnection.png"     # 계통연계 단선도
-MODEL_IMG = ASSETS / "pv_plant_model.png"          # REPC/REEC/REGC 모델 구조
-
 PLANT_INFO = {
     "Plant capacity": "180 MW PV Plant",
     "POI": "345 kV (Grid 999 INF)",
@@ -91,8 +77,6 @@ PLANT_INFO = {
     "IBR": "0.69 kV (IBR 91003 GEN)",
     "Dynamic models": "REPCAU1 (Plant) -> REECAU1 (Electrical) -> REGCAU1 (Generator)",
 }
-
-
 # ----------------------------------------------------------------------------
 # 1) PSS/E 생략 - 시험 케이스용 CSV 시계열 데이터 생성
 # ----------------------------------------------------------------------------
@@ -101,8 +85,7 @@ DT = 0.01
 T_END = 10.0
 FAULT_START = 2.0
 F_NOM = 60.0
-SETTLE_WIN = 1.5          # 마지막 1.5초를 정착 구간으로 사용
-
+SETTLE_WIN = 1.5 # 마지막 1.5초를 정착 구간으로 사용
 TEST_CASES = {
     "LVRT": [
         {"id": "LVRT_01", "level": 0.10, "dur": 0.15, "recover": True,
@@ -126,19 +109,15 @@ TEST_CASES = {
          "desc": "±10% voltage step change (up -> nominal -> down -> nominal)"},
     ],
 }
-
 TEST_LABEL = {
     "LVRT": "Low Voltage Ride-Through Test",
     "HVRT": "High Voltage Ride-Through Test",
     "VSTEP": "Voltage Step Change Test",
 }
-
-
 def _make_timeseries(case):
     """단순 응답 모델로 V/P/Q 시계열 생성 (PSS/E 대체)."""
     t = np.arange(0, T_END, DT)
     rng = np.random.default_rng(abs(hash(case["id"])) % (2**32))
-
     if "steps" in case:
         v_cmd = np.ones_like(t)
         for (s, e, lvl) in case["steps"]:
@@ -149,7 +128,7 @@ def _make_timeseries(case):
         for k in range(1, len(t)):
             v[k] = v[k-1] + alpha * (v_cmd[k] - v[k-1])
         p = np.full_like(t, PLANT_MW) - PLANT_MW * 0.02 * (v - 1.0)
-        q = -PLANT_MW * 0.8 * (v - 1.0)   # V>1 -> Q 흡수(-), V<1 -> Q 주입(+)
+        q = -PLANT_MW * 0.8 * (v - 1.0) # V>1 -> Q 흡수(-), V<1 -> Q 주입(+)
     else:
         level, dur = case["level"], case["dur"]
         v = np.ones_like(t)
@@ -170,18 +149,14 @@ def _make_timeseries(case):
             p[post_mask] *= 0.55
         q = np.zeros_like(t)
         q[fault_mask] = PLANT_MW * 0.5 * (1.0 - v[fault_mask])
-
     v = v + rng.normal(0, 0.002, size=v.shape)
     p = p + rng.normal(0, 0.3, size=p.shape)
     q = q + rng.normal(0, 0.3, size=q.shape)
     freq = np.full_like(t, F_NOM) + rng.normal(0, 0.005, size=t.shape)
-
     return pd.DataFrame({
         "Time (s)": t, "Voltage (pu)": v, "Frequency (Hz)": freq,
         "Active Power (MW)": p, "Reactive Power (MVar)": q,
     })
-
-
 def generate_all_cases(out_dir):
     out_dir.mkdir(parents=True, exist_ok=True)
     generated = {}
@@ -194,8 +169,6 @@ def generate_all_cases(out_dir):
             rows.append((case, df, csv_path))
         generated[kind] = rows
     return generated
-
-
 # ----------------------------------------------------------------------------
 # 2) IEEE 2800.2 기준 Pass/Fail 판정
 # ----------------------------------------------------------------------------
@@ -216,10 +189,8 @@ def quick_metrics(df):
         "post_V_std": round(v_settle_band, 4),
         "P_recovery_ratio": round(recovery_ratio, 4),
     }
-
-
 DEFAULT_PARAM_TABLE = [
-    {"name": "Tp",  "model": "REGCAU1", "desc": "Voltage filter time constant (voltage measurement filter)",
+    {"name": "Tp", "model": "REGCAU1", "desc": "Voltage filter time constant (voltage measurement filter)",
      "current": "0.5", "recommended": "0.02"},
     {"name": "Tiq", "model": "REGCAU1", "desc": "Current filter time constant (or related delay)",
      "current": "10.0", "recommended": "10.0"},
@@ -235,8 +206,6 @@ DEFAULT_RATIONALE = [
     "Raising Kvp/Kvi accelerates the local voltage control loop so active power recovers to >= 95% "
     "of pre-fault output and post-fault voltage settles near 1.0 pu (WECC Generic Model Validation & IEEE 2800.2).",
 ]
-
-
 def _rule_based_judgment(metrics):
     recov = metrics["P_recovery_ratio"]
     overshoot = metrics["max_V_pu"]
@@ -253,30 +222,23 @@ def _rule_based_judgment(metrics):
                 "param_table": DEFAULT_PARAM_TABLE, "rationale": DEFAULT_RATIONALE}
     return {"verdict": "Pass", "reason": "전압 회복 및 출력 복귀 정상",
             "param_table": [], "rationale": []}
-
-
 def judge_with_openai(case, kind, metrics):
     client = get_client()
     fallback = _rule_based_judgment(metrics)
     if client is None:
         fallback["source"] = "rule-based (API 키 없음)"
         return fallback
-
     prompt = f"""You are a grid-code compliance expert. Judge the following IBR
 ride-through test result against IEEE 2800.2 conformity criteria.
-
 Test type: {TEST_LABEL.get(kind, kind)} ({kind})
 Test case: {case['id']} - {case['desc']}
 Computed metrics: {json.dumps(metrics)}
-
 IEEE 2800.2 / WECC Generic Model expectations:
 - Plant remains connected (no trip).
 - Active power recovers to >= 95% of pre-fault value after clearance.
 - Post-fault voltage settles near 1.0 pu with adequate damping; overshoot <= ~1.2 pu.
-
 If FAIL, give concrete REGCAU1/REECAU1 parameter recommendations (Tp,Tiq,Kvp,Kvi)
 with current vs recommended values, plus rationale.
-
 Return STRICT JSON only:
 {{"verdict":"Pass"|"Fail","reason":"...(korean ok)",
   "param_table":[{{"name":"Tp","model":"REGCAU1","desc":"...","current":"0.5","recommended":"0.02"}}],
@@ -298,8 +260,6 @@ For Pass, param_table and rationale are empty arrays."""
     except Exception:
         fallback["source"] = "rule-based (OpenAI 호출 실패)"
         return fallback
-
-
 # ----------------------------------------------------------------------------
 # 3) PDF 보고서 생성
 # ----------------------------------------------------------------------------
@@ -307,8 +267,6 @@ ORANGE = colors.HexColor("#E8721C")
 ORANGE_DEEP = colors.HexColor("#C9551A")
 CREAM = colors.HexColor("#FFF1E2")
 RED = colors.HexColor("#c0392b")
-
-
 def _plot_case(df, case_id):
     fig, ax1 = plt.subplots(figsize=(5.6, 2.6))
     ax1.plot(df["Time (s)"], df["Voltage (pu)"], color="#E8721C", lw=1.5, label="V (pu)")
@@ -321,8 +279,6 @@ def _plot_case(df, case_id):
     fig.tight_layout()
     buf = io.BytesIO(); fig.savefig(buf, format="png", dpi=120); plt.close(fig); buf.seek(0)
     return buf
-
-
 def _mitigation_flowables(j, body, h3):
     elems = [Paragraph("Fail Reasons and Parameter Recommendations", h3)]
     elems.append(Paragraph("<b>1. Parameters to Modify (REGCAU1 &amp; REECAU1 Model)</b>", body))
@@ -351,8 +307,6 @@ def _mitigation_flowables(j, body, h3):
     elems.append(ListFlowable([ListItem(Paragraph(r, body)) for r in j["rationale"]],
                               bulletType="bullet", start="circle", leftIndent=14))
     return elems
-
-
 def build_pdf(results, out_path):
     doc = SimpleDocTemplate(str(out_path), pagesize=letter, topMargin=0.7*inch, bottomMargin=0.7*inch)
     styles = getSampleStyleSheet()
@@ -361,11 +315,9 @@ def build_pdf(results, out_path):
     h2 = ParagraphStyle("h2", parent=styles["Heading2"], textColor=ORANGE_DEEP)
     h3 = ParagraphStyle("h3", parent=styles["Heading3"], textColor=ORANGE)
     body = styles["BodyText"]
-
     elems = [Paragraph("IBR Model Quality Test Report", title),
-             Paragraph(f"180 MW PV Plant  |  IEEE 2800.2 Conformity  |  {datetime.now():%Y-%m-%d %H:%M}", subtitle),
+             Paragraph(f"180 MW PV Plant | IEEE 2800.2 Conformity | {datetime.now():%Y-%m-%d %H:%M}", subtitle),
              Spacer(1, 18)]
-
     n_fail = sum(1 for r in results if r["judgment"]["verdict"] == "Fail")
     elems.append(Paragraph(
         f"Summary &nbsp;-&nbsp; Total {len(results)} cases, "
@@ -387,7 +339,6 @@ def build_pdf(results, out_path):
             style.append(("TEXTCOLOR", (2, i), (2, i), RED))
             style.append(("FONTNAME", (2, i), (2, i), "Helvetica-Bold"))
     tbl.setStyle(TableStyle(style)); elems += [tbl, PageBreak()]
-
     for r in results:
         j = r["judgment"]
         vc = "#1f8a3b" if j["verdict"] == "Pass" else "#c0392b"
@@ -402,20 +353,15 @@ def build_pdf(results, out_path):
         if j["verdict"] == "Fail" and j.get("param_table"):
             elems += _mitigation_flowables(j, body, h3)
         elems.append(PageBreak())
-
     doc.build(elems)
     return out_path
-
-
 # ----------------------------------------------------------------------------
-# Streamlit UI  (SK 연한 주황 테마, 흰색 사이드바)
+# Streamlit UI (SK 연한 주황 테마, 흰색 사이드바)
 # ----------------------------------------------------------------------------
 st.set_page_config(page_title="IBR MQT AI Agent", page_icon="🟠", layout="wide")
-
 WORK_DIR = Path("./mqt_workspace")
 CSV_DIR = WORK_DIR / "csv"
 PDF_PATH = WORK_DIR / "MQT_Report.pdf"
-
 CUSTOM_CSS = """
 <style>
 :root { --orange:#E8721C; --orange-deep:#C9551A; --cream:#FFF1E2; }
@@ -467,26 +413,20 @@ div[data-testid="stExpander"] { border:1px solid #f3ddc7; border-radius:12px; ba
 </style>
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
-
-
 def metric_card(col, value, label, cls=""):
     col.markdown(f"<div class='metric-card'><div class='v {cls}'>{value}</div>"
                  f"<div class='l'>{label}</div></div>", unsafe_allow_html=True)
-
-
 def sidebar():
     st.sidebar.markdown("### 🟠 MQT AI Agent")
     st.sidebar.caption("IBR Model Quality Test")
     if get_api_key():
-        st.sidebar.success("서비스 준비 완료")
+        st.sidebar.success("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
         st.sidebar.caption("개발자 키로 동작 (사용자 입력 불필요)")
     else:
         st.sidebar.warning("키 미설정 → 룰베이스 판정")
         st.sidebar.caption("Secrets에 OPENAI_API_KEY 등록 필요")
     st.sidebar.markdown("---")
-    return st.sidebar.radio("MENU", ["대시보드 · 판정", "Power System Chatbot"])
-
-
+    return st.sidebar.radio("MENU", ["Model Quality Test", "Power System Chatbot"])
 def render_plant_model():
     st.markdown("<div class='section-title'>적용 모델 · 180 MW PV Plant</div>"
                 "<div class='hr'></div>", unsafe_allow_html=True)
@@ -494,20 +434,16 @@ def render_plant_model():
     with c1:
         st.markdown("<div class='diagram'><div class='cap'>Grid interconnection of the plant model</div></div>",
                     unsafe_allow_html=True)
-        if GRID_IMG.exists():
-            st.image(str(GRID_IMG), use_container_width=True)
+        st.image(GRID_IMG_URL, use_container_width=True)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
         st.markdown("<div class='diagram'><div class='cap'>PV plant model "
                     "(WECC Generic REGC / REEC / REPC)</div></div>", unsafe_allow_html=True)
-        if MODEL_IMG.exists():
-            st.image(str(MODEL_IMG), use_container_width=True)
+        st.image(MODEL_IMG_URL, use_container_width=True)
     with c2:
         st.markdown("<div class='card'><div class='cap' style='color:#c9551a;font-weight:800;margin-bottom:8px'>"
                     "모델 제원</div>"
                     + "".join(f"<div class='kv'><b>{k}</b> : {v}</div>" for k, v in PLANT_INFO.items())
                     + "</div>", unsafe_allow_html=True)
-
-
 def page_run():
     st.markdown(
         "<div class='hero'><h1>IBR Model Quality Test · AI Agent</h1>"
@@ -516,15 +452,12 @@ def page_run():
         "<span class='badge'>Voltage Step Change</span>"
         "<span class='badge'>AI Pass/Fail</span><span class='badge'>PDF Report</span></div>",
         unsafe_allow_html=True)
-
     render_plant_model()
-
     st.markdown("<div class='section-title' style='margin-top:18px'>품질테스트 실행</div>"
                 "<div class='hr'></div>", unsafe_allow_html=True)
     c1, _, _ = st.columns([1, 1, 1])
     with c1:
-        run = st.button("▶  시뮬레이션 & AI 판정 실행", use_container_width=True)
-
+        run = st.button("▶ 시뮬레이션 & AI 판정 실행", use_container_width=True)
     if run:
         with st.spinner("CSV 생성 및 IEEE 2800.2 판정 중..."):
             generated = generate_all_cases(CSV_DIR)
@@ -540,23 +473,19 @@ def page_run():
                     done += 1; progress.progress(done / total)
             progress.empty(); st.session_state["results"] = results
         st.toast("판정 완료!", icon="✅")
-
     results = st.session_state.get("results")
     if not results:
         st.info("‘시뮬레이션 & AI 판정 실행’을 눌러 시작하세요.")
         return
-
     n_total = len(results)
     n_fail = sum(1 for r in results if r["judgment"]["verdict"] == "Fail")
     n_pass = n_total - n_fail
-
     st.markdown("<div class='section-title'>Overview</div><div class='hr'></div>", unsafe_allow_html=True)
     m1, m2, m3, m4 = st.columns(4)
     metric_card(m1, n_total, "Total Cases")
     metric_card(m2, n_pass, "Pass", "pass")
     metric_card(m3, n_fail, "Fail", "fail")
     metric_card(m4, f"{n_pass/n_total*100:.0f}%", "Pass Rate")
-
     st.markdown("<div class='section-title' style='margin-top:18px'>Results</div>"
                 "<div class='hr'></div>", unsafe_allow_html=True)
     summary = pd.DataFrame([{
@@ -564,15 +493,13 @@ def page_run():
         "P recovery": f"{r['metrics']['P_recovery_ratio']:.0%}",
         "Max V (pu)": r["metrics"]["max_V_pu"], "Reason": r["judgment"]["reason"],
     } for r in results])
-
     def color_verdict(val):
         return "color:#c0392b;font-weight:700" if val == "Fail" else "color:#1f8a3b;font-weight:700"
     st.dataframe(summary.style.map(color_verdict, subset=["Verdict"]),
                  use_container_width=True, hide_index=True)
-
     for r in results:
         v = r["judgment"]["verdict"]; icon = "🟢" if v == "Pass" else "🔴"
-        with st.expander(f"{icon}  {TEST_LABEL.get(r['kind'], r['kind'])} · {r['case']['id']} — {v}"):
+        with st.expander(f"{icon} {TEST_LABEL.get(r['kind'], r['kind'])} · {r['case']['id']} — {v}"):
             st.caption(r["case"]["desc"])
             st.line_chart(r["df"].set_index("Time (s)")[["Voltage (pu)", "Active Power (MW)"]])
             if v == "Fail":
@@ -585,16 +512,13 @@ def page_run():
                     st.table(pt[["Parameter", "Model", "Current", "Recommended", "Description"]])
                     for rt in r["judgment"].get("rationale", []):
                         st.markdown(f"- {rt}")
-
     st.markdown("<div class='hr'></div>", unsafe_allow_html=True)
-    if st.button("📄  PDF 보고서 생성"):
+    if st.button("📄 PDF 보고서 생성"):
         with st.spinner("PDF 생성 중..."):
             build_pdf(results, PDF_PATH)
         with open(PDF_PATH, "rb") as f:
-            st.download_button("⬇  보고서 다운로드", f.read(),
+            st.download_button("⬇ 보고서 다운로드", f.read(),
                                file_name="IBR_MQT_Report.pdf", mime="application/pdf")
-
-
 def page_chatbot():
     st.markdown(
         "<div class='hero'><h1>⚡ Power System Chatbot 🤖</h1>"
@@ -604,11 +528,9 @@ def page_chatbot():
     if client is None:
         st.info("🔑 서비스 키가 설정되지 않아 챗봇을 사용할 수 없습니다. (배포자 문의)")
         return
-
     st.markdown("##### 💡 추천 질문")
-    st.caption("⚡ IEEE 2800 LVRT 기준은?   🌊 REGCAU1 Tp는 무슨 역할?   "
+    st.caption("⚡ IEEE 2800 LVRT 기준은? 🌊 REGCAU1 Tp는 무슨 역할? "
                "🔋 Voltage Step Change Test 절차는?")
-
     if "chat" not in st.session_state:
         st.session_state.chat = [{
             "role": "assistant",
@@ -619,7 +541,6 @@ def page_chatbot():
         avatar = "🤖" if m["role"] == "assistant" else "🧑‍🔧"
         with st.chat_message(m["role"], avatar=avatar):
             st.markdown(m["content"])
-
     if prompt := st.chat_input("💬 질문을 입력하세요 (예: IEEE 2800 LVRT 기준?)"):
         st.session_state.chat.append({"role": "user", "content": prompt})
         with st.chat_message("user", avatar="🧑‍🔧"):
@@ -638,10 +559,8 @@ def page_chatbot():
         st.session_state.chat.append({"role": "assistant", "content": answer})
         with st.chat_message("assistant", avatar="🤖"):
             st.markdown(answer)
-
-
 choice = sidebar()
-if choice == "대시보드 · 판정":
+if choice == "Model Quality Test":
     page_run()
 else:
     page_chatbot()
