@@ -415,8 +415,8 @@ def sidebar():
     st.sidebar.markdown("### 🟠 MQT AI Agent")
     st.sidebar.caption("IBR Model Quality Test")
     if get_api_key():
-        st.sidebar.success("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
-        st.sidebar.caption("개발자 키로 동작 (사용자 입력 불필요)")
+        st.sidebar.success("Development of an AI Agent-Based Automated System for Dynamic Model Quality Test of Inverter-Based Resources")
+        st.sidebar.caption("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
     else:
         st.sidebar.warning("키 미설정 → 룰베이스 판정")
         st.sidebar.caption("Secrets에 OPENAI_API_KEY 등록 필요")
