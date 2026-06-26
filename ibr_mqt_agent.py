@@ -219,7 +219,7 @@ def judge_with_openai(case, kind, metrics):
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}], temperature=0.1)
-        raw = resp.choices[0].message.content.strip().replace("```json:disable-run
+        raw = resp.choices[0].message.content.strip().replace("json:disable-run
         data = json.loads(raw)
         if data.get("verdict") == "Fail" and not data.get("param_table"):
             data["param_table"] = DEFAULT_PARAM_TABLE
