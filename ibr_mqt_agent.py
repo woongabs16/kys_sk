@@ -412,6 +412,16 @@ def metric_card(col, value, label, cls=""):
                  f"<div class='l'>{label}</div></div>", unsafe_allow_html=True)
 
 def sidebar():
+    # MENU 글씨 크기 확대를 위한 CSS
+    st.markdown("""
+    <style>
+    div[role="radiogroup"] label {
+        font-size: 18px !important;
+        font-weight: 600 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
     st.sidebar.markdown("### 🟠 MQT AI Agent")
     
     if get_api_key():
