@@ -413,12 +413,23 @@ def metric_card(col, value, label, cls=""):
 
 def sidebar():
     st.sidebar.markdown("### 🟠 MQT AI Agent")
+    st.sidebar.image("https://raw.githubusercontent.com/woongabs16/kys_sk/main/logo.png", width=80)
+    st.sidebar.markdown("**YEONSOO KIM**")
+    
     if get_api_key():
         st.sidebar.success("AI Agent-Based Automated System for Dynamic Model Quality Test of Inverter-Based Resources")
         st.sidebar.caption("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
     else:
         st.sidebar.warning("키 미설정 → 룰베이스 판정")
         st.sidebar.caption("Secrets에 OPENAI_API_KEY 등록 필요")
+    
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("**📌 사용 방법**")
+    st.sidebar.markdown("""
+    • **Model Quality Test**: 시뮬레이션&AI 판정 실행 클릭 → PDF 보고서 생성 클릭 → 보고서 다운로드
+    • **Power System Chatbot**: Q&A
+    """)
+    
     st.sidebar.markdown("---")
     return st.sidebar.radio("MENU", ["Model Quality Test", "Power System Chatbot"])
 
