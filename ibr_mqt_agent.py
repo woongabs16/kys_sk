@@ -75,6 +75,110 @@ PLANT_INFO = {
 }
 
 # ----------------------------------------------------------------------------
+# 챗봇 도메인 지식 (정확도 향상용 시스템 프롬프트 + few-shot)
+# ----------------------------------------------------------------------------
+CHATBOT_SYSTEM = """You are an expert power-system engineer assistant specializing in
+inverter-based resource (IBR) grid interconnection. Your domains: IEEE Std 2800-2022 and
+IEEE 2800.2 conformity testing, LVRT/HVRT ride-through, voltage/frequency step change tests,
+flat start tests, and WECC generic PSS/E models (REGCAU1 / REECAU1 / REPCAU1).
+
+ACCURACY RULES (follow strictly):
+- Answer in Korean, concise and technically precise. Add a few relevant emojis to stay friendly.
+- Ground every claim in the reference facts below. Do NOT invent numeric thresholds.
+- If a user asks for an exact value that depends on the specific .dyr definition or a
+  specific table/region of IEEE 2800-2022, state the typical/representative value AND tell the
+  user to confirm against the official IEEE 2800-2022 table or the model's .dyr file.
+- Distinguish IEEE 2800 (requirements) from IEEE 2800.2 (conformity test/validation procedure).
+- If you are unsure, say so plainly rather than guessing.
+- Keep parameter-name caveats: the same physical quantity may appear as Tp or Tfltr etc.
+  depending on the model variant.
+
+REFERENCE FACTS (authoritative for this assistant):
+[IEEE 2800 LVRT]
+- Continuous operation band is typically 0.9-1.1 pu (no curtailment).
+- Low-voltage ride-through is a stepwise voltage-vs-time envelope: the deeper the dip,
+  the shorter the mandatory ride-through time.
+- The minimum ride-through duration near the near-zero-voltage region is representatively 0.32 s
+  (reflecting transmission primary fault-clearing time).
+- During the dip the IBR must inject dynamic reactive current proportional to voltage deviation
+  to support voltage recovery; after clearance, active power must recover toward pre-disturbance
+  level with transient overshoot kept within about 1.2 pu. Momentary cessation is restricted.
+
+[IEEE 2800 HVRT]
+- High-voltage ride-through applies above ~1.1 pu swell; the higher the voltage, the shorter the
+  ride-through time. During overvoltage the IBR absorbs reactive power (negative Q).
+
+[REGCAU1 Tp]
+- Tp is the terminal-voltage measurement filter time constant (a 1st-order low-pass filter).
+- Large Tp delays voltage sensing -> slower/under-damped LVRT recovery. Too small -> noise sensitivity.
+- Typical recommended value is around 0.02 s. A value like 0.5 s is a classic cause of sluggish LVRT.
+- Naming may differ (Tp vs Tfltr) by model variant; confirm in the .dyr definition.
+
+[Voltage Step Change Test]
+- Purpose: verify plant voltage/reactive-power control dynamics (mainly REPC Q-control and REEC).
+- Procedure: stabilize at an operating point (e.g., P fixed, V=1.0 pu) -> apply a step UP in
+  reference/source voltage (e.g., +2% or +5%) -> hold to reach new steady state -> return to nominal
+  -> apply a step DOWN (-2% or -5%) -> return. Record V, P, Q, current throughout.
+- Evaluate rise time, settling time, overshoot, steady-state error, and the reactive-power response
+  (droop/voltage-control gain, time constant, damping) vs. the reference/measured response.
+
+[REGC / REEC / REPC roles]
+- REGC_A (REGCAU1): converter/generator interface (current injection, LVPL, high-voltage reactive
+  current management).
+- REEC (REECAU1): electrical control (active/reactive current commands, current limit logic,
+  Q/V and P control modes).
+- REPC (REPCAU1): plant-level control (POI voltage/reactive power, frequency droop, reference commands).
+
+[IEEE 2800 vs 2800.2]
+- IEEE 2800: interconnection REQUIREMENTS for IBR.
+- IEEE 2800.2: conformity TEST / validation procedures for those requirements (basis of MQT pass/fail).
+
+[Reactive current injection gain]
+- During LVRT, reactive current is injected proportional to voltage deviation; the slope K (pu/pu)
+  is set by the operator/standard (often >= 2 pu/pu is cited) and implemented via REEC (e.g., Kqv).
+
+[Typical LVRT-fail mitigation]
+- Reduce voltage measurement filter Tp (e.g., 0.5 -> 0.02), raise local voltage-loop gains
+  Kvp/Kvi (e.g., 0.1 -> 0.9 / 0.1 -> 0.4), and widen Imax/Qmax to speed up recovery and improve damping.
+
+[Flat Start Test]
+- Checks that with no disturbance, V/P/Q stay flat (proper initialization/equilibrium);
+  small standard deviation = pass.
+"""
+
+CHATBOT_FEWSHOT = [
+    {"role": "user", "content": "IEEE 2800 LVRT 기준은?"},
+    {"role": "assistant", "content":
+     "⚡ IEEE 2800-2022는 IBR이 측정점(POM)에서 전압-시간 포락선을 따라 외란을 견디고 "
+     "연결을 유지(ride-through)하도록 규정해요.\n\n"
+     "• 연속 운전 영역은 보통 0.9~1.1 pu (출력 저감 없이 운전)\n"
+     "• 저전압일수록 견뎌야 하는 시간이 짧아지는 계단형 곡선이며, 영점 부근 최소 ride-through "
+     "시간은 대표적으로 0.32초로 인용돼요 (송전 1차 보호 고장제거 시간 반영)\n"
+     "• 저전압 구간엔 전압편차에 비례하는 동적 무효전류 주입으로 전압 회복 지원, 고장 제거 후엔 "
+     "유효전력을 외란 이전 수준으로 회복하되 과도 오버슈트는 약 1.2 pu 이내로 제한 🌊\n\n"
+     "정확한 수치 곡선은 적용 표(IEEE 2800-2022 ride-through 절)를 직접 대조하시길 권해요. 📘"},
+
+    {"role": "user", "content": "REGCAU1 Tp는 무슨 역할?"},
+    {"role": "assistant", "content":
+     "🌊 REGCAU1의 Tp는 단자전압 측정 필터의 시정수예요 (1차 저역통과 필터). 컨버터가 전압을 "
+     "인지할 때 노이즈·급변을 걸러줍니다.\n\n"
+     "• Tp가 크면 전압 감지가 늦어져 LVRT 회복이 느려지고 감쇠가 부족해질 수 있어요\n"
+     "• 너무 작으면 측정 노이즈에 민감\n"
+     "• 일반 권장값은 약 0.02초이며, 0.5초처럼 크면 응답이 둔해지는 전형적 원인이에요 ⚙️\n\n"
+     "모델 변형에 따라 Tp 또는 Tfltr로 표기가 다를 수 있으니 .dyr 정의서에서 확인하세요. 🔍"},
+
+    {"role": "user", "content": "Voltage Step Change Test 절차는?"},
+    {"role": "assistant", "content":
+     "🔋 전압 스텝 변화 시험은 플랜트의 전압/무효전력 제어(REPC Q-control, REEC) 동특성을 검증해요.\n\n"
+     "1️⃣ 정상 상태로 안정화 (예: P 일정, V=1.0 pu)\n"
+     "2️⃣ 기준전압을 계단형으로 상승 (예: +2%, +5%) → 새 정상 상태까지 유지\n"
+     "3️⃣ 공칭으로 복귀 → 같은 방식으로 하강 스텝 (−2%, −5%) → 복귀\n"
+     "4️⃣ 전 구간 V·P·Q·전류 기록 📈\n\n"
+     "평가 항목: 상승시간, 정정시간, 오버슈트, 정상상태 오차, 전압변동에 대한 무효전력 응답"
+     "(droop/게인·시정수·감쇠). '공칭→위 스텝→공칭→아래 스텝→공칭' 파형이 전형적 입력이에요. 😊"},
+]
+
+# ----------------------------------------------------------------------------
 # 테스트 케이스
 # ----------------------------------------------------------------------------
 PLANT_MW = 180.0
@@ -231,8 +335,27 @@ def judge_with_openai(case, kind, metrics):
     if client is None:
         fallback["source"] = "rule-based (API 키 없음)"
         return fallback
-    # OpenAI 판정 (LVRT_02 Fail 보장)
-    prompt = f"""You are a grid-code compliance expert..."""  # 기존 prompt 유지
+
+    prompt = f"""You are a grid-code compliance expert. Judge the following IBR
+ride-through / step-change test result against IEEE 2800.2 conformity criteria.
+
+Test type: {TEST_LABEL.get(kind, kind)} ({kind})
+Test case: {case['id']} - {case['desc']}
+Computed metrics: {json.dumps(metrics)}
+
+IEEE 2800.2 / WECC Generic Model expectations:
+- Plant remains connected (no trip).
+- Active power recovers to >= 95% of pre-fault value after clearance.
+- Post-fault voltage settles near 1.0 pu with adequate damping; overshoot <= ~1.2 pu.
+
+If FAIL, give concrete REGCAU1/REECAU1 parameter recommendations (Tp, Kvp, Kvi)
+with current vs recommended values, plus rationale.
+
+Return STRICT JSON only:
+{{"verdict":"Pass"|"Fail","reason":"...(korean ok)",
+  "param_table":[{{"name":"Tp","model":"REGCAU1","desc":"...","current":"0.5","recommended":"0.02"}}],
+  "rationale":["...","..."]}}
+For Pass, param_table and rationale are empty arrays."""
     try:
         resp = client.chat.completions.create(
             model="gpt-4o-mini",
@@ -421,19 +544,19 @@ def sidebar():
     }
     </style>
     """, unsafe_allow_html=True)
-    
+
     st.sidebar.markdown("### 🟠 MQT AI Agent")
-    
+
     if get_api_key():
         st.sidebar.success("AI Agent-Based Automated System for Dynamic Model Quality Test of Inverter-Based Resources")
         st.sidebar.caption("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
     else:
         st.sidebar.warning("키 미설정 → 룰베이스 판정")
         st.sidebar.caption("Secrets에 OPENAI_API_KEY 등록 필요")
-    
+
     st.sidebar.markdown("---")
     menu_choice = st.sidebar.radio("MENU", ["Model Quality Test", "Power System Chatbot"])
-    
+
     st.sidebar.markdown("---")
     st.sidebar.markdown("<span style='font-size: 13px;'><b>📌 사용 방법</b></span>", unsafe_allow_html=True)
     st.sidebar.markdown("""
@@ -442,11 +565,11 @@ def sidebar():
     • Power System Chatbot: 질문 입력
     </span>
     """, unsafe_allow_html=True)
-    
+
     st.sidebar.markdown("---")
     st.sidebar.image("https://raw.githubusercontent.com/woongabs16/kys_sk/main/logo.png", width=60)
     st.sidebar.markdown("<span style='font-size: 12px;'><b>YEONSOO KIM</b></span>", unsafe_allow_html=True)
-    
+
     return menu_choice
 
 def render_plant_model():
@@ -456,7 +579,7 @@ def render_plant_model():
     with c1:
         st.markdown("<div class='diagram'><div class='cap'>Grid interconnection of the plant model</div></div>",
                     unsafe_allow_html=True)
-        st.image(GRID_IMG_URL, width=520)  # 크기 축소
+        st.image(GRID_IMG_URL, width=520)
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
         st.markdown("<div class='diagram'><div class='cap'>PV plant model (WECC Generic REGC / REEC / REPC)</div></div>",
                     unsafe_allow_html=True)
@@ -552,7 +675,7 @@ def page_run():
 
 def page_chatbot():
     st.markdown(
-        "<div class='hero'><h1>⚡ Power System Chatbot 🤖</h1>",
+        "<div class='hero'><h1>⚡ Power System Chatbot 🤖</h1></div>",
         unsafe_allow_html=True)
     client = get_client()
     if client is None:
@@ -574,14 +697,16 @@ def page_chatbot():
         st.session_state.chat.append({"role": "user", "content": prompt})
         with st.chat_message("user", avatar="🧑‍🔧"):
             st.markdown(prompt)
-        system = ("You are a friendly power-system engineer assistant specializing in IBR grid "
-                  "interconnection, IEEE 2800/2800.2, LVRT/HVRT, voltage step change tests, and "
-                  "PSS/E inverter models (REGCAU1/REECAU1/REPCAU1). Answer concisely in Korean and "
-                  "sprinkle a few relevant emojis to keep it friendly.")
         try:
             resp = client.chat.completions.create(
                 model="gpt-4o-mini",
-                messages=[{"role": "system", "content": system}, *st.session_state.chat])
+                temperature=0.2,                         # 환각 억제, 일관된 답변
+                messages=[
+                    {"role": "system", "content": CHATBOT_SYSTEM},
+                    *CHATBOT_FEWSHOT,                    # 검증된 예시 답변(few-shot)
+                    *st.session_state.chat,              # 실제 대화 기록
+                ],
+            )
             answer = resp.choices[0].message.content
         except Exception as e:
             answer = f"⚠️ 오류: {e}"
