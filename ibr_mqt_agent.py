@@ -413,9 +413,8 @@ def metric_card(col, value, label, cls=""):
 
 def sidebar():
     st.sidebar.markdown("### 🟠 MQT AI Agent")
-    st.sidebar.caption("Inverter-Based Resources Model Quality Test")
     if get_api_key():
-        st.sidebar.success("Development of an AI Agent-Based Automated System for Dynamic Model Quality Test of Inverter-Based Resources")
+        st.sidebar.success("AI Agent-Based Automated System for Dynamic Model Quality Test of Inverter-Based Resources")
         st.sidebar.caption("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
     else:
         st.sidebar.warning("키 미설정 → 룰베이스 판정")
