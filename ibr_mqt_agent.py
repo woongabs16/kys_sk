@@ -693,7 +693,7 @@ def page_chatbot():
         avatar = "🤖" if m["role"] == "assistant" else "🧑‍🔧"
         with st.chat_message(m["role"], avatar=avatar):
             st.markdown(m["content"])
-    if prompt := st.chat_input("💬 질문을 입력하세요 (예: IEEE 2800 LVRT 기준?)"):
+    if prompt := st.chat_input("💬 질문을 입력하세요"):
         st.session_state.chat.append({"role": "user", "content": prompt})
         with st.chat_message("user", avatar="🧑‍🔧"):
             st.markdown(prompt)
