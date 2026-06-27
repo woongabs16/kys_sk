@@ -552,21 +552,19 @@ def page_run():
 
 def page_chatbot():
     st.markdown(
-        "<div class='hero'><h1>⚡ Power System Chatbot 🤖</h1>"
-        "<p>🔌 IBR 계통연계 · 📘 IEEE 2800/2800.2 · 🌊 LVRT/HVRT · 🧩 PSS/E 모델 질의응답</p></div>",
+        "<div class='hero'><h1>⚡ Power System Chatbot 🤖</h1>",
         unsafe_allow_html=True)
     client = get_client()
     if client is None:
         st.info("🔑 서비스 키가 설정되지 않아 챗봇을 사용할 수 없습니다. (배포자 문의)")
         return
-    st.markdown("##### 💡 예상 질문")
+    st.markdown("##### 💡 질문예시")
     st.caption("⚡ IEEE 2800 LVRT 기준은? 🌊 REGCAU1 Tp는 무슨 역할? "
                "🔋 Voltage Step Change Test 절차는?")
     if "chat" not in st.session_state:
         st.session_state.chat = [{
             "role": "assistant",
-            "content": "👋 안녕하세요! ⚡ IBR 계통연계 전문 챗봇입니다. "
-                       "🔌 LVRT/HVRT, 📘 IEEE 2800.2, 🧩 REGC/REEC/REPC 모델 등 무엇이든 물어보세요. 😊"
+            "content": "👋 안녕하세요! ⚡ IBR 계통연계 전문 챗봇입니다. 무엇이든 물어보세요. 😊"
         }]
     for m in st.session_state.chat:
         avatar = "🤖" if m["role"] == "assistant" else "🧑‍🔧"
