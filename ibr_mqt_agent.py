@@ -413,7 +413,7 @@ def metric_card(col, value, label, cls=""):
 
 def sidebar():
     st.sidebar.markdown("### 🟠 MQT AI Agent")
-    st.sidebar.caption("IBR Model Quality Test")
+    st.sidebar.caption("Inverter-Based Resources Model Quality Test")
     if get_api_key():
         st.sidebar.success("Development of an AI Agent-Based Automated System for Dynamic Model Quality Test of Inverter-Based Resources")
         st.sidebar.caption("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
@@ -443,14 +443,14 @@ def render_plant_model():
 
 def page_run():
     st.markdown(
-        "<div class='hero'><h1>IBR Model Quality Test · AI Agent</h1>"
-        "<p>180 MW PV Plant 인버터 모델 품질테스트 자동 판정 (IEEE 2800.2)</p>"
-        "<span class='badge'>LVRT</span><span class='badge'>HVRT</span>"
-        "<span class='badge'>Voltage Step Change</span>"
-        "<span class='badge'>AI Pass/Fail</span><span class='badge'>PDF Report</span></div>",
+        "<div class='hero'><h1>IBR Model Quality Test AI Agent</h1>"
+        "<p>인버터 기반 자원의 동적 모델 품질테스트 자동화를 위한 AI Agent</p>"
+        "<span class='badge'>Generative AI</span><span class='badge'>Power System Chatbot</span>"
+        "<span class='badge'>AI Pass/Fail</span>"
+        "<span class='badge'>PDF Report</span><span class='badge'>IEEE Std 2800.2</span></div>",
         unsafe_allow_html=True)
     render_plant_model()
-    st.markdown("<div class='section-title' style='margin-top:18px'>품질테스트 실행</div>"
+    st.markdown("<div class='section-title' style='margin-top:18px'>모델품질테스트(MQT) 실행</div>"
                 "<div class='hr'></div>", unsafe_allow_html=True)
     st.markdown("**Performed Tests**  \n"
                 "• Voltage Ride-Through Test (LVRT & HVRT)  \n"
