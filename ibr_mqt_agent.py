@@ -412,11 +412,11 @@ def metric_card(col, value, label, cls=""):
                  f"<div class='l'>{label}</div></div>", unsafe_allow_html=True)
 
 def sidebar():
-    # MENU 글씨 크기 확대를 위한 CSS
+    # MENU 글씨 크기 확대
     st.markdown("""
     <style>
     div[role="radiogroup"] label {
-        font-size: 18px !important;
+        font-size: 20px !important;
         font-weight: 600 !important;
     }
     </style>
@@ -437,9 +437,11 @@ def sidebar():
     st.sidebar.markdown("---")
     st.sidebar.markdown("**📌 사용 방법**")
     st.sidebar.markdown("""
-    • **Model Quality Test**: 시뮬레이션&AI 판정 실행 클릭 → PDF 보고서 생성 클릭 → 보고서 다운로드  
-    • **Power System Chatbot**: 질문 입력
-    """)
+    <span style='font-size: 13px;'>
+    • Model Quality Test: 시뮬레이션&AI 판정 실행 클릭 → PDF 보고서 생성 클릭 → 보고서 다운로드<br>
+    • Power System Chatbot: 질문 입력
+    </span>
+    """, unsafe_allow_html=True)
     
     st.sidebar.markdown("---")
     st.sidebar.image("https://raw.githubusercontent.com/woongabs16/kys_sk/main/logo.png", width=60)
