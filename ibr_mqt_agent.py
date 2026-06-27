@@ -413,9 +413,6 @@ def metric_card(col, value, label, cls=""):
 
 def sidebar():
     st.sidebar.markdown("### 🟠 MQT AI Agent")
-    st.sidebar.image("https://raw.githubusercontent.com/woongabs16/kys_sk/main/logo.png", width=80)
-    st.sidebar.markdown("**YEONSOO KIM**")
-    
     if get_api_key():
         st.sidebar.success("AI Agent-Based Automated System for Dynamic Model Quality Test of Inverter-Based Resources")
         st.sidebar.caption("개발자 Open AI API키로 동작 (사용자 입력 불필요)")
@@ -432,6 +429,9 @@ def sidebar():
     
     st.sidebar.markdown("---")
     return st.sidebar.radio("MENU", ["Model Quality Test", "Power System Chatbot"])
+    st.sidebar.markdown("---")
+    st.sidebar.image("https://raw.githubusercontent.com/woongabs16/kys_sk/main/logo.png", width=60)
+    st.sidebar.markdown("**YEONSOO KIM**")
 
 def render_plant_model():
     st.markdown("<div class='section-title'>적용 모델 · 180 MW PV Plant</div>"
