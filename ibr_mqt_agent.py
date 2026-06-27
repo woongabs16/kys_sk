@@ -412,7 +412,7 @@ def metric_card(col, value, label, cls=""):
                  f"<div class='l'>{label}</div></div>", unsafe_allow_html=True)
 
 def sidebar():
-    # MENU 글씨 크기 확대
+    # MENU 글씨 크기 확대 (20px)
     st.markdown("""
     <style>
     div[role="radiogroup"] label {
@@ -435,7 +435,7 @@ def sidebar():
     menu_choice = st.sidebar.radio("MENU", ["Model Quality Test", "Power System Chatbot"])
     
     st.sidebar.markdown("---")
-    st.sidebar.markdown("**📌 사용 방법**")
+    st.sidebar.markdown("<span style='font-size: 15px;'><b>📌 사용 방법</b></span>", unsafe_allow_html=True)
     st.sidebar.markdown("""
     <span style='font-size: 13px;'>
     • Model Quality Test: 시뮬레이션&AI 판정 실행 클릭 → PDF 보고서 생성 클릭 → 보고서 다운로드<br>
@@ -444,8 +444,8 @@ def sidebar():
     """, unsafe_allow_html=True)
     
     st.sidebar.markdown("---")
-    st.sidebar.image("https://raw.githubusercontent.com/woongabs16/kys_sk/main/logo.png", width=60)
-    st.sidebar.markdown("**YEONSOO KIM**")
+    st.sidebar.image("https://raw.githubusercontent.com/woongabs16/kys_sk/main/logo.png", width=40)
+    st.sidebar.markdown("<span style='font-size: 14px;'><b>YEONSOO KIM</b></span>", unsafe_allow_html=True)
     
     return menu_choice
 
