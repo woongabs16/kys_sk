@@ -423,12 +423,13 @@ def sidebar():
     st.sidebar.markdown("---")
     st.sidebar.markdown("**📌 사용 방법**")
     st.sidebar.markdown("""
-    • **Model Quality Test**: 시뮬레이션&AI 판정 실행 클릭 → PDF 보고서 생성 클릭 → 보고서 다운로드
+    • **Model Quality Test**: 시뮬레이션&AI 판정 실행 클릭 → PDF 보고서 생성 클릭 → 보고서 다운로드\
     • **Power System Chatbot**: Q&A
     """)
     
     st.sidebar.markdown("---")
     return st.sidebar.radio("MENU", ["Model Quality Test", "Power System Chatbot"])
+    
     st.sidebar.markdown("---")
     st.sidebar.image("https://raw.githubusercontent.com/woongabs16/kys_sk/main/logo.png", width=60)
     st.sidebar.markdown("**YEONSOO KIM**")
